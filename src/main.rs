@@ -2,6 +2,7 @@ extern crate sdl2;
 extern crate gl;
 
 use std::ffi::{CString, CStr};
+// ref: http://nercury.github.io/rust/opengl/tutorial/2018/02/11/opengl-in-rust-from-scratch-04-triangle.html
 
 struct Shader {
     id: gl::types::GLuint,
@@ -51,7 +52,7 @@ fn main() {
 
     unsafe {
         gl::Viewport(0, 0, 900, 700);
-        gl::ClearColor(0.3, 0.3, 0.5, 1.0);
+        // gl::ClearColor(0.2, 0.2, 0.2, 1.0);
     }
 
     let vert_shader = Shader::from_vert_source(
@@ -65,20 +66,20 @@ fn main() {
     let shader_program = Program::from_shaders(
         &[vert_shader, frag_shader]
     ).unwrap();
+
+    shader_program.use_program();
     
+    let mut vertex_array: gl::types::GLuint = 0;
     let vertices: Vec<f32> = vec![
         0.0, 0.6547, 0.0,
         0.5, -0.5, 0.3333,
         -0.5, -0.5, 0.6667
     ];
 
-    let mut vbo: gl::types::GLuint = 0;
+    let mut vertex_buffer: gl::types::GLuint = 0;
     unsafe {
-        gl::GenBuffers(1, &mut vbo);
-    }
-
-    unsafe {
-        gl::BindBuffer(gl::ARRAY_BUFFER, vbo);
+        gl::GenBuffers(1, &mut vertex_buffer);
+        gl::BindBuffer(gl::ARRAY_BUFFER, vertex_buffer);
         gl::BufferData(
             gl::ARRAY_BUFFER, // target
             (vertices.len() * std::mem::size_of::<f32>()) as gl::types::GLsizeiptr, // size of data in bytes
@@ -88,29 +89,25 @@ fn main() {
         gl::BindBuffer(gl::ARRAY_BUFFER, 0); // unbind the buffer
     }
 
-    let mut vao: gl::types::GLuint = 0;
     unsafe {
-        gl::GenVertexArrays(1, &mut vao);
-    }
+        gl::GenVertexArrays(1, &mut vertex_array);
+        gl::BindVertexArray(vertex_array);
+        gl::BindBuffer(gl::ARRAY_BUFFER, vertex_buffer);
 
-    unsafe {
-        gl::BindVertexArray(vao);
-        gl::BindBuffer(gl::ARRAY_BUFFER, vbo);
-        gl::EnableVertexAttribArray(0); // this is "layout (location = 0)" in vertex shader
-        gl::VertexAttribPointer(
-            0, // index of the generic vertex attribute ("layout (location = 0)")
-            3, // the number of components per generic vertex attribute
-            gl::FLOAT, // data type
-            gl::FALSE, // normalized (int-to-float conversion)
-            (3 * std::mem::size_of::<f32>()) as gl::types::GLint, // stride (byte offset between consecutive attributes)
-            std::ptr::null() // offset of the first component
-        );
+        let pos_attr: gl::types::GLuint = gl::GetAttribLocation(shader_program.id(), CString::new("position").unwrap().as_ptr()) as gl::types::GLuint;
+        gl::EnableVertexAttribArray(pos_attr);
+        gl::VertexAttribPointer(pos_attr, 2, gl::FLOAT,gl::FALSE, (3 * std::mem::size_of::<f32>()) as gl::types::GLint, std::ptr::null());
+        
+        let col_attr: gl::types::GLuint = gl::GetAttribLocation(shader_program.id(), CString::new("vsColor").unwrap().as_ptr()) as gl::types::GLuint;
+        gl::EnableVertexAttribArray(col_attr);
+        gl::VertexAttribPointer(col_attr, 1, gl::FLOAT,gl::FALSE, (3 * std::mem::size_of::<f32>()) as gl::types::GLint, (2 * std::mem::size_of::<f32>()) as *const std::os::raw::c_void);
+
         gl::BindBuffer(gl::ARRAY_BUFFER, 0);
         gl::BindVertexArray(0);
     }
 
-    shader_program.use_program();
-
+    let phase_unif: gl::types::GLint = unsafe { gl::GetUniformLocation(shader_program.id(), CString::new("vsPhase").unwrap().as_ptr()) };
+    let mut phase = 0.1;
     let mut event_pump = sdl.event_pump().unwrap();
     'main: loop {
         for event in event_pump.poll_iter() {
@@ -123,9 +120,10 @@ fn main() {
         unsafe {
             gl::Clear(gl::COLOR_BUFFER_BIT);
         }
-
+        phase = phase + 0.01;
         unsafe {
-            gl::BindVertexArray(vao);
+            gl::BindVertexArray(vertex_array);
+            gl::Uniform1f(phase_unif, phase);
             gl::DrawArrays(
                 gl::TRIANGLES, // mode
                 0, // starting index in the enabled arrays
