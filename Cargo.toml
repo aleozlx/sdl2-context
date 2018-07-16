@@ -5,4 +5,4 @@ authors = ["Alex Yang <aleozlx@gmail.com>"]
 
 [dependencies]
 sdl2 = { version = "0.31.0", features = ["bundled", "static-link"] }
-gl = "0.10.0"
+gl = { path = "lib/glviewer" }
